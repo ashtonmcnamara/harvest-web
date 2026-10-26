@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, ScrollView, TouchableOpacity, ActivityIndicator, Platform, Image } from 'react-native';
+import { View, ScrollView, TouchableOpacity, ActivityIndicator, Platform, Image, useWindowDimensions } from 'react-native';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import { supabase } from '@/lib/supabase';
@@ -32,8 +32,8 @@ const DashboardInventory = ({ farmId, isAdmin }: { farmId: string, isAdmin: bool
 
   return (
     <View className="flex-1">
-      <View className="flex-row items-center justify-between mb-8">
-        <Text className="text-3xl font-bold text-gray-900">Inventory {isAdmin && "(All Farms)"}</Text>
+      <View className="flex-row items-center justify-between mb-8 flex-wrap gap-4">
+        <Text className="text-2xl sm:text-3xl font-bold text-gray-900">Inventory {isAdmin && "(All Farms)"}</Text>
         <TouchableOpacity onPress={() => router.push('/new-product')} className="flex-row items-center bg-[#1d4ed8] px-4 py-2.5 rounded-xl shadow-sm">
           <Plus size={18} color="white" />
           <Text className="text-white font-bold text-base ml-2">Add Product</Text>
@@ -92,8 +92,8 @@ const DashboardEvents = ({ farmId, isAdmin }: { farmId: string, isAdmin: boolean
 
   return (
     <View className="flex-1">
-      <View className="flex-row items-center justify-between mb-8">
-        <Text className="text-3xl font-bold text-gray-900">Events {isAdmin && "(All Farms)"}</Text>
+      <View className="flex-row items-center justify-between mb-8 flex-wrap gap-4">
+        <Text className="text-2xl sm:text-3xl font-bold text-gray-900">Events {isAdmin && "(All Farms)"}</Text>
         <TouchableOpacity onPress={() => router.push('/new-event')} className="flex-row items-center bg-[#1d4ed8] px-4 py-2.5 rounded-xl shadow-sm">
           <Plus size={18} color="white" />
           <Text className="text-white font-bold text-base ml-2">Add Event</Text>
@@ -213,7 +213,7 @@ const DashboardMessages = ({ farmId, isAdmin }: { farmId: string, isAdmin: boole
 
   return (
     <View className="flex-1">
-      <Text className="text-3xl font-bold text-gray-900 mb-8">Messages {isAdmin && "(All Farms)"}</Text>
+      <Text className="text-2xl sm:text-3xl font-bold text-gray-900 mb-8">Messages {isAdmin && "(All Farms)"}</Text>
       
       {conversations.length === 0 ? (
         <View className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm items-center justify-center">
@@ -263,7 +263,11 @@ const DashboardMessages = ({ farmId, isAdmin }: { farmId: string, isAdmin: boole
 export default function WebDashboard() {
   const router = useRouter();
   const params = useLocalSearchParams(); 
+  const { width } = useWindowDimensions();
   
+  // If window width is less than 768px, treat it as mobile view
+  const isMobileScreen = width < 768;
+
   const [activeTab, setActiveTab] = useState((params.tab as string) || 'overview');
   const [loading, setLoading] = useState(true);
   
@@ -288,16 +292,13 @@ export default function WebDashboard() {
     async function initDashboard() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user?.id) {
-        
-        // CHECK ROLE FIRST
         const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
         
         if (profile?.role === 'admin') {
           setIsAdmin(true);
           setFarmName('HarvestNS Admin');
-          setFarmId('admin_bypass'); // Bypasses the null check in the renderer
+          setFarmId('admin_bypass');
         } else {
-          // NORMAL PRODUCER LOGIC
           const { data: member } = await supabase.from('farm_members').select('farm_id, farms(name)').eq('user_id', session.user.id).single();
           if (member) {
             setFarmId(member.farm_id);
@@ -320,12 +321,15 @@ export default function WebDashboard() {
   const NavItem = ({ id, icon: Icon, label }: any) => (
     <TouchableOpacity 
       onPress={() => router.setParams({ tab: id })} 
-      className={`flex-row items-center p-3 rounded-xl mb-2 ${activeTab === id ? 'bg-blue-50' : 'hover:bg-gray-50 transition-colors'}`}
+      style={isMobileScreen ? { paddingHorizontal: 12, paddingVertical: 8 } : {}}
+      className={`flex-row items-center p-3 rounded-xl ${!isMobileScreen && 'mb-2'} ${activeTab === id ? 'bg-blue-50' : 'hover:bg-gray-50 transition-colors'}`}
     >
       <Icon size={20} color={activeTab === id ? '#1d4ed8' : '#64748b'} />
-      <Text className={`ml-3 font-semibold text-base ${activeTab === id ? 'text-blue-700' : 'text-slate-500'}`}>
-        {label}
-      </Text>
+      {!isMobileScreen && (
+        <Text className={`ml-3 font-semibold text-base ${activeTab === id ? 'text-blue-700' : 'text-slate-500'}`}>
+          {label}
+        </Text>
+      )}
     </TouchableOpacity>
   );
 
@@ -334,62 +338,76 @@ export default function WebDashboard() {
   }
 
   return (
-    <View style={{ flex: 1, flexDirection: 'row', height: '100vh', width: '100vw' }} className="bg-gray-50 overflow-hidden">
+    <View style={{ flex: 1, flexDirection: isMobileScreen ? 'column' : 'row', height: '100vh', width: '100vw' }} className="bg-gray-50 overflow-hidden">
       
-      {/* Sidebar Navigation */}
-      <View style={{ width: 280 }} className="bg-white border-r border-gray-200 p-6 justify-between h-full shadow-sm z-10">
-        <View>
-          <Text className="text-2xl font-bold text-black mb-8" numberOfLines={1}>{farmName}</Text>
+      {/* Sidebar (Desktop) or Top Header Bar (Mobile) */}
+      <View 
+        style={isMobileScreen ? { width: '100%', height: 70 } : { width: 280, height: '100%' }} 
+        className="bg-white border-b sm:border-b-0 sm:border-r border-gray-200 p-4 sm:p-6 justify-between shadow-sm z-10 flex-row sm:flex-col items-center sm:items-stretch"
+      >
+        <View className="flex-row sm:flex-col items-center sm:items-stretch w-full justify-between sm:justify-start">
+          {!isMobileScreen && (
+            <Text className="text-2xl font-bold text-black mb-8" numberOfLines={1}>{farmName}</Text>
+          )}
+          {isMobileScreen && (
+            <Text className="text-lg font-bold text-black" numberOfLines={1}>{farmName}</Text>
+          )}
           
-          <NavItem id="overview" icon={LayoutDashboard} label="Live Feed" />
-          <NavItem id="products" icon={Package} label="Inventory" />
-          <NavItem id="events" icon={Calendar} label="Events" />
-          <NavItem id="messages" icon={MessageSquare} label="Messages" />
+          <View className="flex-row sm:flex-col gap-1 sm:gap-0">
+            <NavItem id="overview" icon={LayoutDashboard} label="Live Feed" />
+            <NavItem id="products" icon={Package} label="Inventory" />
+            <NavItem id="events" icon={Calendar} label="Events" />
+            <NavItem id="messages" icon={MessageSquare} label="Messages" />
+          </View>
         </View>
 
-        <View className="gap-2">
-          {/* Switch to Mobile View Button */}
-          <TouchableOpacity onPress={() => router.replace('/(tabs)')} className="flex-row items-center p-3 hover:bg-gray-50 rounded-xl transition-colors mb-2">
-            <Smartphone size={20} color="#64748b" />
-            <Text className="ml-3 font-semibold text-base text-slate-500">Switch to Mobile View</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity onPress={() => setShowSettings(true)} className="flex-row items-center p-3 hover:bg-gray-50 rounded-xl transition-colors">
-            <SettingsIcon size={20} color="#64748b" />
-            <Text className="ml-3 font-semibold text-base text-slate-500">Settings</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity onPress={handleLogout} className="flex-row items-center p-3 hover:bg-red-50 rounded-xl transition-colors">
-            <LogOut size={20} color="#ef4444" />
-            <Text className="ml-3 font-semibold text-base text-red-500">Sign Out</Text>
-          </TouchableOpacity>
-        </View>
+        {!isMobileScreen && (
+          <View className="gap-2">
+            <TouchableOpacity onPress={() => router.replace('/(tabs)')} className="flex-row items-center p-3 hover:bg-gray-50 rounded-xl transition-colors mb-2">
+              <Smartphone size={20} color="#64748b" />
+              <Text className="ml-3 font-semibold text-base text-slate-500">Switch to Mobile View</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity onPress={() => setShowSettings(true)} className="flex-row items-center p-3 hover:bg-gray-50 rounded-xl transition-colors">
+              <SettingsIcon size={20} color="#64748b" />
+              <Text className="ml-3 font-semibold text-base text-slate-500">Settings</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity onPress={handleLogout} className="flex-row items-center p-3 hover:bg-red-50 rounded-xl transition-colors">
+              <LogOut size={20} color="#ef4444" />
+              <Text className="ml-3 font-semibold text-base text-red-500">Sign Out</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* Main Content Area */}
       <View style={{ flex: 1 }} className="h-full bg-[#F8FAFC]">
         {activeTab === 'overview' && (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 24 }}>
-            <View style={{ width: '100%', maxWidth: 448, height: '100%', borderRadius: 32, overflow: 'hidden' }} className="bg-white shadow-2xl border border-gray-200">
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: isMobileScreen ? 0 : 24 }}>
+            <View 
+              style={isMobileScreen ? { flex: 1, width: '100%', height: '100%' } : { width: '100%', maxWidth: 448, height: '100%', borderRadius: 32, overflow: 'hidden' }} 
+              className={isMobileScreen ? "bg-white overflow-hidden" : "bg-white shadow-2xl border border-gray-200"}
+            >
               <HomeFeed />
             </View>
           </View>
         )}
 
         {activeTab === 'products' && (
-          <ScrollView className="flex-1 px-10 py-12" showsVerticalScrollIndicator={false}>
+          <ScrollView className="flex-1 px-4 sm:px-10 py-6 sm:py-12" showsVerticalScrollIndicator={false}>
             {farmId ? <DashboardInventory farmId={farmId} isAdmin={isAdmin} /> : <Text>No farm linked.</Text>}
           </ScrollView>
         )}
         
         {activeTab === 'events' && (
-          <ScrollView className="flex-1 px-10 py-12" showsVerticalScrollIndicator={false}>
+          <ScrollView className="flex-1 px-4 sm:px-10 py-6 sm:py-12" showsVerticalScrollIndicator={false}>
             {farmId ? <DashboardEvents farmId={farmId} isAdmin={isAdmin} /> : <Text>No farm linked.</Text>}
           </ScrollView>
         )}
 
         {activeTab === 'messages' && (
-          <ScrollView className="flex-1 px-10 py-12" showsVerticalScrollIndicator={false}>
+          <ScrollView className="flex-1 px-4 sm:px-10 py-6 sm:py-12" showsVerticalScrollIndicator={false}>
             {farmId ? <DashboardMessages farmId={farmId} isAdmin={isAdmin} /> : <Text>No farm linked.</Text>}
           </ScrollView>
         )}
