@@ -1,4 +1,4 @@
-import { Platform, View, TouchableOpacity, Text } from 'react-native';
+import { Platform, View, TouchableOpacity, Text, useWindowDimensions } from 'react-native';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import { AuthProvider, useAuth } from '@/components/context/AuthContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -9,15 +9,23 @@ function RootLayoutInner() {
   const pathname = usePathname();
   const router = useRouter();
   const { userMode } = useAuth();
+  const { width } = useWindowDimensions();
+  
   const isWebDashboard = pathname.startsWith('/dashboard');
+  
+  // Checks if the browser width is mobile-sized (less than 768px)
+  const isMobileScreen = width < 768;
 
   return (
     <>
       {Platform.OS === 'web' && !isWebDashboard ? (
-        // ADDED: py-8 (vertical padding) to create space at the top and bottom
-        <View style={{ flex: 1, height: '100vh', overflow: 'hidden' }} className="bg-gray-100 items-center justify-center relative py-8">
+        <View 
+          style={{ flex: 1, height: '100vh', overflow: 'hidden' }} 
+          className={isMobileScreen ? "bg-white items-center justify-center" : "bg-gray-100 items-center justify-center relative py-8"}
+        >
           
-          {(userMode === 'producer' || userMode === 'admin') && (
+          {/* Only show the floating dashboard button on desktop-sized screens */}
+          {!isMobileScreen && (userMode === 'producer' || userMode === 'admin') && (
             <TouchableOpacity 
               onPress={() => router.replace('/dashboard')}
               style={{ position: 'absolute', top: 24, left: 24, zIndex: 50, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 }}
@@ -28,8 +36,11 @@ function RootLayoutInner() {
             </TouchableOpacity>
           )}
 
-          {/* ADDED: borderRadius: 32 and height: '100%' to match the dashboard feed frame */}
-          <View style={{ flex: 1, width: '100%', maxWidth: 448, height: '100%', borderRadius: 32 }} className="bg-white shadow-2xl overflow-hidden border border-gray-200">
+          {/* If mobile screen, it fills the screen completely with 0 border-radius. If desktop, it uses the phone frame. */}
+          <View 
+            style={isMobileScreen ? { flex: 1, width: '100%', height: '100%' } : { flex: 1, width: '100%', maxWidth: 448, height: '100%', borderRadius: 32 }} 
+            className={isMobileScreen ? "bg-white overflow-hidden" : "bg-white shadow-2xl overflow-hidden border border-gray-200"}
+          >
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="login" />
               <Stack.Screen name="(tabs)" />
