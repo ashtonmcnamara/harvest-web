@@ -59,6 +59,7 @@ export default function SignUpScreen() {
         resizeMode="contain"
       />
 
+
       <TextInput
         style={styles.input}
         placeholder="First Name"
@@ -112,15 +113,14 @@ export default function SignUpScreen() {
         )}
       </TouchableOpacity>
       
-      {/* NEW: Apple Required Terms of Service & Privacy Links */}
       <View style={styles.legalContainer}>
         <Text style={styles.legalText}>
           By creating an account, you agree to our{' '}
-          <Text style={styles.link} onPress={() => Linking.openURL('https://maritimes.duckdns.org/terms-of-service-privacy-policy/')}>
+          <Text style={styles.link} onPress={() => Linking.openURL('https://maritimes.duckdns.org/harvestns/legal/')}>
             Terms of Service
           </Text>
           {' '}and{' '}
-          <Text style={styles.link} onPress={() => Linking.openURL('https://maritimes.duckdns.org/terms-of-service-privacy-policy/')}>
+          <Text style={styles.link} onPress={() => Linking.openURL('https://maritimes.duckdns.org/harvestns/legal/')}>
             Privacy Policy
           </Text>.
         </Text>
@@ -139,7 +139,29 @@ export default function SignUpScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, justifyContent: 'center', backgroundColor: '#fff' },
   welcomeText: { fontSize: 22, fontWeight: '600', color: '#666', textAlign: 'center', marginBottom: 5 },
-  logo: { width: '100%', height: 100, marginBottom: 30 },
+  logo: { width: '100%', height: 100, marginBottom: 20 }, // Reduced bottom margin slightly to fit the banner
+  
+  // Banner Styles
+  bannerContainer: { 
+    backgroundColor: '#fef3c7', 
+    borderColor: '#f59e0b', 
+    borderWidth: 1, 
+    padding: 12, 
+    borderRadius: 8, 
+    marginBottom: 20 
+  },
+  bannerTitle: { 
+    fontWeight: 'bold', 
+    color: '#92400e', 
+    marginBottom: 4, 
+    fontSize: 14 
+  },
+  bannerText: { 
+    color: '#92400e', 
+    fontSize: 13, 
+    lineHeight: 18 
+  },
+
   input: { borderWidth: 1, borderColor: '#ccc', padding: 15, borderRadius: 8, marginBottom: 15, fontSize: 16 },
   button: { backgroundColor: '#1d4ed8', padding: 15, borderRadius: 8, alignItems: 'center' },
   buttonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },

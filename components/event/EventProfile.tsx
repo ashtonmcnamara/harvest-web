@@ -6,7 +6,18 @@ import { Text } from '@/components/ui/text';
 import { ChevronLeft, Bookmark, Pin, Calendar, Heart, Users, Pencil, BadgeCheck, Share as ShareIcon } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/context/AuthContext';
-import MapView, { Marker } from 'react-native-maps';
+import LocationMap from '@/components/ui/LocationMap';
+
+const handleGuestAction = (router: any, actionName: string) => {
+  Alert.alert(
+    'Account Required',
+    `You must create a free account to ${actionName}.`,
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign Up / Log In', onPress: async () => { await supabase.auth.signOut(); router.replace('/login'); } }
+    ]
+  );
+};
 
 export default function EventProfile() {
   const insets = useSafeAreaInsets();
@@ -17,6 +28,7 @@ export default function EventProfile() {
   const [activeEvent, setActiveEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
   
   const [isSaved, setIsSaved] = useState(false);
   const [isRsvped, setIsRsvped] = useState(false);
@@ -44,21 +56,27 @@ export default function EventProfile() {
           }
 
           const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user?.id) {
-            setCurrentUserId(session.user.id);
+          if (session?.user) {
+            setIsGuest(session.user.is_anonymous ?? false);
             
-            const { data: savedData } = await supabase.from('saved_events').select('*').eq('event_id', id).eq('user_id', session.user.id).single();
-            if (savedData) setIsSaved(true);
+            if (!session.user.is_anonymous) {
+              setCurrentUserId(session.user.id);
+              
+              const { data: savedData } = await supabase.from('saved_events').select('*').eq('event_id', id).eq('user_id', session.user.id).single();
+              if (savedData) setIsSaved(true);
 
-            const { data: rsvpData } = await supabase.from('event_rsvps').select('*').eq('event_id', id).eq('user_id', session.user.id).single();
-            if (rsvpData) setIsRsvped(true);
+              const { data: rsvpData } = await supabase.from('event_rsvps').select('*').eq('event_id', id).eq('user_id', session.user.id).single();
+              if (rsvpData) setIsRsvped(true);
 
-            const { data: likeData } = await supabase.from('event_likes').select('*').eq('event_id', id).eq('user_id', session.user.id).single();
-            if (likeData) setIsLiked(true);
-            
-            const { count } = await supabase.from('event_likes').select('*', { count: 'exact', head: true }).eq('event_id', id);
-            if (count !== null) setLikesCount(count);
+              const { data: likeData } = await supabase.from('event_likes').select('*').eq('event_id', id).eq('user_id', session.user.id).single();
+              if (likeData) setIsLiked(true);
+            }
           }
+          
+          // Always get total likes
+          const { count } = await supabase.from('event_likes').select('*', { count: 'exact', head: true }).eq('event_id', id);
+          if (count !== null) setLikesCount(count);
+          
         } catch (error) {
           console.error('Error fetching event details:', error);
         } finally {
@@ -70,12 +88,12 @@ export default function EventProfile() {
     }, [id])
   );
 
-const handleShare = async () => {
-    if (!activeEvent) return; // Safety check!
+  const handleShare = async () => {
+    if (!activeEvent) return; 
     try {
       await NativeShare.share({ 
         message: `Check out ${activeEvent.title} on HarvestNS! https://harvestns.com/event/${id}`,
-        url: `https://harvestns.com/event/${id}` // iOS Clickable Link
+        url: `https://harvestns.com/event/${id}` 
       });
     } catch (error) {
       console.log(error);
@@ -83,6 +101,8 @@ const handleShare = async () => {
   };
 
   const toggleRSVP = async () => {
+    if (isGuest) return handleGuestAction(router, 'RSVP to this event');
+
     const previousState = isRsvped;
     setIsRsvped(!previousState);
     setRsvpCount(prev => previousState ? prev - 1 : prev + 1);
@@ -101,6 +121,8 @@ const handleShare = async () => {
   };
 
   const toggleSave = async () => {
+    if (isGuest) return handleGuestAction(router, 'save this event');
+
     const previousState = isSaved;
     setIsSaved(!previousState);
     
@@ -117,6 +139,8 @@ const handleShare = async () => {
   };
 
   const toggleLike = async () => {
+    if (isGuest) return handleGuestAction(router, 'like this event');
+
     const previousState = isLiked;
     setIsLiked(!previousState);
     setLikesCount(prev => previousState ? prev - 1 : prev + 1);
@@ -174,16 +198,25 @@ const handleShare = async () => {
   
   const isAdmin = userMode === 'admin';
   const isCreator = currentUserId === activeEvent.author_id; 
-  const canEditDescription = isAdmin || isCreator;
+  const canEditDescription = (isAdmin || isCreator) && !isGuest;
 
   return (
     <View className="flex-1 bg-[#F9FAFB]">
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         
         <View className="px-5 flex-row justify-between items-center" style={{ paddingTop: Math.max(insets.top, 16) }}>
-          <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 bg-white border border-gray-200 rounded-full items-center justify-center shadow-sm">
-            <ChevronLeft size={24} color="#333" />
-          </TouchableOpacity>
+<TouchableOpacity 
+  onPress={() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)'); // Fallback to home feed on direct web loads
+    }
+  }} 
+  className="w-10 h-10 bg-black/40 rounded-full items-center justify-center backdrop-blur-md border border-white/20"
+>
+  <ChevronLeft size={24} color="white" />
+</TouchableOpacity>
           <View className="flex-row gap-3">
             {canEditDescription && (
               <TouchableOpacity onPress={handleDeleteEvent} className="bg-[#ff4d4f] px-3 py-1.5 rounded-full mr-2 self-center">
@@ -248,29 +281,19 @@ const handleShare = async () => {
             <Text className="text-gray-700 text-base leading-6">{activeEvent.description}</Text>
           </View>
 
-        {/* Dynamic Map Embed */}
           {(activeEvent.latitude && activeEvent.longitude) ? (
             <View className="bg-[#F3F4F6] border border-gray-200 overflow-hidden rounded-2xl mb-8">
               <View className="p-5 pb-4 border-b border-gray-200 bg-white">
                 <Text className="text-lg font-bold text-black mb-1">Location</Text>
                 <Text className="text-gray-700 text-base">{activeEvent.location}</Text>
               </View>
-              <View className="h-48 w-full">
-                <MapView 
-                  style={{ flex: 1 }}
-                  initialRegion={{
-                    latitude: Number(activeEvent.latitude), 
-                    longitude: Number(activeEvent.longitude),
-                    latitudeDelta: 0.05,
-                    longitudeDelta: 0.05,
-                  }}
-                >
-                  <Marker 
-                    coordinate={{ latitude: Number(activeEvent.latitude), longitude: Number(activeEvent.longitude) }} 
-                    title={activeEvent.title} 
-                  />
-                </MapView>
-              </View>
+<View className="h-48 w-full">
+  <LocationMap 
+    latitude={activeEvent.latitude} 
+    longitude={activeEvent.longitude} 
+    title={activeEvent.title} 
+  />
+</View>
             </View>
           ) : (
             <View className="bg-[#F3F4F6] border border-gray-200 p-5 rounded-2xl mb-8">

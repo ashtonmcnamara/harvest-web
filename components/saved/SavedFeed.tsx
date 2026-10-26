@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { View, ScrollView, TouchableOpacity, Image, Animated } from 'react-native';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { View, ScrollView, TouchableOpacity, Image, Animated, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/ui/text';
@@ -7,8 +7,12 @@ import { Bookmark, Calendar } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 
 export default function SavedFeed() {
+  // 1. ALL HOOKS AT THE TOP
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  
+  const [isGuest, setIsGuest] = useState<boolean | null>(null);
+  
   const [activeTab, setActiveTab] = useState('Farms');
   const [loading, setLoading] = useState(true);
   
@@ -18,8 +22,21 @@ export default function SavedFeed() {
   const [savedEvents, setSavedEvents] = useState<any[]>([]);
   const [savedUpdates, setSavedUpdates] = useState<any[]>([]);
   
+  // 2. CHECK GUEST STATUS
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsGuest(session?.user?.is_anonymous ?? false);
+    });
+  }, []);
+
+  // 3. LOAD SAVED ITEMS (Skip if guest)
   useFocusEffect(
     useCallback(() => {
+      if (isGuest === null || isGuest === true) {
+        setLoading(false);
+        return;
+      }
+
       fadeAnim.setValue(0);
       setLoading(true);
 
@@ -67,7 +84,7 @@ export default function SavedFeed() {
       }
 
       fetchSavedItems();
-    }, [fadeAnim])
+    }, [fadeAnim, isGuest])
   );
 
   const handleUnsave = async (tableName: string, idColumn: string, itemId: string) => {
@@ -82,6 +99,42 @@ export default function SavedFeed() {
     } catch (error) {}
   };
 
+  // ====================================================
+  // RENDER PHASE
+  // ====================================================
+
+  if (isGuest === null) {
+    return <View className="flex-1 justify-center items-center bg-white"><ActivityIndicator color="#1d4ed8" size="large" /></View>;
+  }
+
+  // APPLE REVIEWER FIX: Guest Lock Screen for Saved Feed
+  if (isGuest) {
+    return (
+      <View className="flex-1 justify-center items-center px-8 bg-gray-50" style={{ paddingTop: insets.top }}>
+        <View className="w-16 h-16 bg-blue-100 rounded-full items-center justify-center mb-6">
+          <Bookmark size={32} color="#1d4ed8" />
+        </View>
+        <Text className="text-2xl font-bold text-gray-900 mb-3 text-center">Account Required</Text>
+        <Text className="text-base text-gray-500 text-center mb-8 leading-relaxed">
+          Create a free account to save your favorite farms, events, and community updates.
+        </Text>
+        
+<TouchableOpacity 
+  onPress={async () => {
+    // 1. Sign out of the temporary guest session first
+    await supabase.auth.signOut();
+    // 2. Then navigate to the login screen
+    router.replace('/login');
+  }}
+  className="bg-blue-700 w-full py-4 rounded-xl items-center shadow-sm"
+>
+  <Text className="text-white font-bold text-lg">Sign Up / Log In</Text>
+</TouchableOpacity>
+      </View>
+    );
+  }
+
+  // NORMAL SAVED SCREEN
   return (
     <View className="flex-1 bg-[#F9FAFB]">
       <View className="flex-row items-center justify-between px-5 pb-4 border-b border-gray-100 bg-white" style={{ paddingTop: Math.max(insets.top, 16) }}>

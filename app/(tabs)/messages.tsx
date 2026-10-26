@@ -1,21 +1,38 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/context/AuthContext';
+import { MessageCircle } from 'lucide-react-native';
 
 export default function MessagesScreen() {
+  // 1. ALL HOOKS MUST BE DECLARED AT THE TOP
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { userMode } = useAuth();
   
+  const [isGuest, setIsGuest] = useState<boolean | null>(null);
   const [conversations, setConversations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // 2. CHECK GUEST STATUS
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsGuest(session?.user?.is_anonymous ?? false);
+    });
+  }, []);
+
+  // 3. LOAD CONVERSATIONS (Only if NOT a guest)
   useFocusEffect(
     useCallback(() => {
+      // If we don't know the guest status yet, or if they ARE a guest, don't fetch messages
+      if (isGuest === null || isGuest === true) {
+        setLoading(false);
+        return;
+      }
+
       async function loadConversations() {
         setLoading(true);
         try {
@@ -23,7 +40,7 @@ export default function MessagesScreen() {
           if (!session?.user?.id) return;
           const userId = session.user.id;
 
-          // NEW: Grab the IDs of everyone we've blocked
+          // Grab the IDs of everyone we've blocked
           const { data: blockedData } = await supabase.from('blocked_users').select('blocked_id').eq('blocker_id', userId);
           const blockedIds = new Set(blockedData?.map((b: any) => b.blocked_id) || []);
 
@@ -41,7 +58,7 @@ export default function MessagesScreen() {
           if (convos) {
             const formatted = (await Promise.all(convos.map(async (c: any) => {
               
-              // NEW: Instantly drop the conversation if we blocked the consumer!
+              // Instantly drop the conversation if we blocked the consumer
               if (userMode === 'producer' && blockedIds.has(c.consumer_id)) return null;
 
               const { data: lastMsg } = await supabase.from('messages')
@@ -51,7 +68,7 @@ export default function MessagesScreen() {
                 .limit(1)
                 .single();
 
-              // NEW: Drop the conversation if the sender of the message is blocked!
+              // Drop the conversation if the sender of the message is blocked
               if (lastMsg && blockedIds.has(lastMsg.sender_id)) return null;
 
               const farmData = Array.isArray(c.farms) ? c.farms[0] : c.farms;
@@ -95,7 +112,7 @@ export default function MessagesScreen() {
                 time: timeString,
                 hasUnread
               };
-            }))).filter(Boolean); // Filters out any `null` conversations we skipped!
+            }))).filter(Boolean);
 
             setConversations(formatted);
           }
@@ -106,9 +123,46 @@ export default function MessagesScreen() {
         }
       }
       loadConversations();
-    }, [userMode])
+    }, [userMode, isGuest]) // Added isGuest to dependency array
   );
 
+  // ====================================================
+  // RENDER PHASE (Early returns are safe down here!)
+  // ====================================================
+
+  // Loading state while checking guest status
+  if (isGuest === null) {
+    return <View className="flex-1 justify-center items-center bg-white"><ActivityIndicator color="#1d4ed8" size="large" /></View>;
+  }
+
+  // APPLE REVIEWER FIX: The Guest Lock Screen
+  if (isGuest) {
+    return (
+      <View className="flex-1 justify-center items-center px-8 bg-gray-50" style={{ paddingTop: insets.top }}>
+        <View className="w-16 h-16 bg-blue-100 rounded-full items-center justify-center mb-6">
+          <MessageCircle size={32} color="#1d4ed8" />
+        </View>
+        <Text className="text-2xl font-bold text-gray-900 mb-3 text-center">Account Required</Text>
+        <Text className="text-base text-gray-500 text-center mb-8 leading-relaxed">
+          Create a free account to message local producers and ask about their harvest.
+        </Text>
+        
+<TouchableOpacity 
+  onPress={async () => {
+    // 1. Sign out of the temporary guest session first
+    await supabase.auth.signOut();
+    // 2. Then navigate to the login screen
+    router.replace('/login');
+  }}
+  className="bg-blue-700 w-full py-4 rounded-xl items-center shadow-sm"
+>
+  <Text className="text-white font-bold text-lg">Sign Up / Log In</Text>
+</TouchableOpacity>
+      </View>
+    );
+  }
+
+  // NORMAL MESSAGES SCREEN (For Logged In Users)
   return (
     <View className="flex-1 bg-white" style={{ paddingTop: insets.top }}>
       <View className="px-5 pb-4 pt-4 border-b border-gray-100">

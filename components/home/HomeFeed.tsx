@@ -30,12 +30,32 @@ function formatDistance(dist: number) {
   return `${Math.round(dist)} km away`;
 }
 
-const UpdateCard = ({ update, toggleSave, setFeedUpdates, currentUserId, userMode, router }: any) => {
+// GUEST CHECKER FUNCTION
+const handleGuestAction = (router: any, actionName: string) => {
+  Alert.alert(
+    'Account Required',
+    `You must create a free account to ${actionName}.`,
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { 
+        text: 'Sign Up / Log In', 
+        onPress: async () => {
+          await supabase.auth.signOut();
+          router.replace('/login');
+        }
+      }
+    ]
+  );
+};
+
+const UpdateCard = ({ update, toggleSave, setFeedUpdates, currentUserId, userMode, isGuest, router }: any) => {
   const [isLiked, setIsLiked] = useState(update.hasLiked);
   const [likesCount, setLikesCount] = useState(update.likes || 0);
   const [isPinned, setIsPinned] = useState(update.isPinned || false);
 
   const handleLike = async () => {
+    if (isGuest) return handleGuestAction(router, 'like this update');
+    
     if (!currentUserId) return;
     const previousState = isLiked;
     setIsLiked(!previousState);
@@ -71,6 +91,8 @@ const UpdateCard = ({ update, toggleSave, setFeedUpdates, currentUserId, userMod
   };
 
   const handleReport = () => {
+    if (isGuest) return handleGuestAction(router, 'report updates or users');
+
     Alert.alert(
       "Content Options",
       "Please select an action for this update.",
@@ -135,11 +157,11 @@ const UpdateCard = ({ update, toggleSave, setFeedUpdates, currentUserId, userMod
         </View>
         <Text className="text-sm text-gray-500 mb-2">{update.time}</Text>
         <Text className="text-base text-gray-800 leading-6 mb-4">{update.content}</Text>
-        {update.image_url && (
+{update.image_url ? (
           <View className="w-full h-40 rounded-2xl overflow-hidden mb-4 border border-gray-200/80 shadow-sm">
             <Image source={{ uri: update.image_url }} className="w-full h-full" resizeMode="cover" />
           </View>
-        )}
+        ) : null}
         <View className="flex-row items-center gap-6">
           <TouchableOpacity onPress={handleLike} className="flex-row items-center gap-1.5">
             <Heart size={18} color={isLiked ? "#ef4444" : "#888"} fill={isLiked ? "#ef4444" : "none"} />
@@ -182,6 +204,7 @@ export default function HomeFeed() {
   
   const { userMode } = useAuth();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
 
   const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(1)).current;
@@ -206,7 +229,10 @@ export default function HomeFeed() {
         try {
           const { data: { session } } = await supabase.auth.getSession();
           const userId = session?.user?.id;
+          const guestStatus = session?.user?.is_anonymous ?? false;
+          
           if (userId) setCurrentUserId(userId);
+          setIsGuest(guestStatus);
 
           let savedFarms = new Set();
           let savedEvents = new Set();
@@ -214,7 +240,7 @@ export default function HomeFeed() {
           let likedUpdates = new Set();
           let blockedUsers = new Set();
 
-          if (userId) {
+          if (userId && !guestStatus) {
             const [sf, se, su, lu, bu] = await Promise.all([
               supabase.from('saved_farms').select('farm_id').eq('user_id', userId),
               supabase.from('saved_events').select('event_id').eq('user_id', userId),
@@ -245,7 +271,7 @@ export default function HomeFeed() {
 
           if (updates) {
             const formattedUpdates = updates
-              .filter(u => !blockedUsers.has(u.author_id)) // Excludes blocked authors!
+              .filter(u => !blockedUsers.has(u.author_id))
               .map(u => {
                 const profile = Array.isArray(u.profiles) ? u.profiles[0] : u.profiles;
                 const isAdmin = profile?.role === 'admin';
@@ -306,6 +332,8 @@ export default function HomeFeed() {
   );
  
   const toggleSave = async (tableName: string, idColumn: string, itemId: string, isCurrentlySaved: boolean, setLocalState: any) => {
+    if (isGuest) return handleGuestAction(router, 'save this item');
+    
     setLocalState((currentFeed: any[]) => currentFeed.map(item => item.id === itemId ? { ...item, saved: !isCurrentlySaved } : item));
     try {
       if (!currentUserId) return;
@@ -488,7 +516,7 @@ export default function HomeFeed() {
               {mainTab === 'Updates' && (
                 <View className="-mx-4 border-t border-gray-100 bg-white">
                   {feedUpdates.map(update => (
-                    <UpdateCard key={update.id} update={update} toggleSave={toggleSave} setFeedUpdates={setFeedUpdates} currentUserId={currentUserId} userMode={userMode} router={router} />
+                    <UpdateCard key={update.id} update={update} toggleSave={toggleSave} setFeedUpdates={setFeedUpdates} currentUserId={currentUserId} userMode={userMode} isGuest={isGuest} router={router} />
                   ))}
                 </View>
               )}

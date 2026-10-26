@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, ActivityIndicator, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, ActivityIndicator, Image, Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 import type { UserMode } from '@/components/context/AuthContext';
@@ -36,9 +36,33 @@ export function LoginScreen({ onLogin }: { onLogin: (mode: UserMode extends null
       
       setLoading(false);
       onLogin(userRole);
-      router.replace('/(tabs)');
+
+      // Route producers and admins to the desktop dashboard on web, otherwise go to tabs
+      if (Platform.OS === 'web' && (userRole === 'producer' || userRole === 'admin')) {
+        router.replace('/dashboard');
+      } else {
+        router.replace('/(tabs)');
+      }
     }
   } 
+
+  async function signInAsGuest() {
+    setLoading(true);
+    
+    const { data, error } = await supabase.auth.signInAnonymously();
+
+    if (error) {
+      Alert.alert('Guest Login Failed', error.message);
+      setLoading(false);
+      return;
+    }
+
+    if (data.session) {
+      setLoading(false);
+      onLogin('consumer'); 
+      router.replace('/(tabs)');
+    }
+  }
 
   return (
     <View style={styles.container}>
@@ -75,6 +99,14 @@ export function LoginScreen({ onLogin }: { onLogin: (mode: UserMode extends null
       </TouchableOpacity>
 
       <TouchableOpacity 
+        style={styles.guestButton} 
+        onPress={signInAsGuest} 
+        disabled={loading}
+      >
+        {loading ? <ActivityIndicator color="#1d4ed8" /> : <Text style={styles.guestButtonText}>Continue as Guest</Text>}
+      </TouchableOpacity>
+
+      <TouchableOpacity 
         style={styles.linkButton} 
         onPress={() => router.push('/signup')}
       >
@@ -87,9 +119,12 @@ export function LoginScreen({ onLogin }: { onLogin: (mode: UserMode extends null
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, justifyContent: 'center', backgroundColor: '#fff' },
   welcomeText: { fontSize: 22, fontWeight: '600', color: '#666', textAlign: 'center', marginBottom: 5 },
-logo: { width: '100%', height: 140, marginBottom: 40 },  input: { borderWidth: 1, borderColor: '#ccc', padding: 15, borderRadius: 8, marginBottom: 15, fontSize: 16 },
-  button: { backgroundColor: '#1d4ed8', padding: 15, borderRadius: 8, alignItems: 'center', marginBottom: 20 },
+  logo: { width: '100%', height: 140, marginBottom: 20 },
+  input: { borderWidth: 1, borderColor: '#ccc', padding: 15, borderRadius: 8, marginBottom: 15, fontSize: 16 },
+  button: { backgroundColor: '#1d4ed8', padding: 15, borderRadius: 8, alignItems: 'center', marginBottom: 15 },
   buttonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  guestButton: { backgroundColor: 'transparent', padding: 15, borderRadius: 8, alignItems: 'center', marginBottom: 20, borderWidth: 2, borderColor: '#1d4ed8' },
+  guestButtonText: { color: '#1d4ed8', fontSize: 18, fontWeight: 'bold' },
   linkButton: { alignItems: 'center', padding: 10 },
   linkText: { color: '#1d4ed8', fontSize: 16, fontWeight: '600' }
 });

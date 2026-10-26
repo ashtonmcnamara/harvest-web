@@ -2,7 +2,7 @@
   "expo": {
     "name": "HarvestNS",
     "slug": "HarvestNS",
-    "version": "1.0.0",
+    "version": "3.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "HarvestNS",
@@ -11,12 +11,11 @@
       "**/*"
     ],
     "ios": {
+      "bundleIdentifier": "com.ashtonmcnamara.HarvestNS",
+      "supportsTablet": false,
       "infoPlist": {
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true
-        }
-      },
-      "bundleIdentifier": "com.ashtonmcnamara.HarvestNS"
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -30,8 +29,8 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "output": "single",
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",
@@ -53,6 +52,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "295917cc-3d3e-4272-b8e1-51047bab0c6d"
+      }
     }
   }
 }

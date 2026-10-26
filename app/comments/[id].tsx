@@ -1,10 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, TouchableOpacity, TextInput, Image, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, ScrollView, TouchableOpacity, TextInput, Image, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import { ChevronLeft, Send } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+
+// GUEST CHECKER FUNCTION
+const handleGuestAction = (router: any, actionName: string) => {
+  Alert.alert(
+    'Account Required',
+    `You must create a free account to ${actionName}.`,
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign Up / Log In', onPress: async () => { await supabase.auth.signOut(); router.replace('/login'); } }
+    ]
+  );
+};
 
 export default function CommentsScreen() {
   const insets = useSafeAreaInsets();
@@ -14,12 +26,19 @@ export default function CommentsScreen() {
   const [comments, setComments] = useState<any[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isGuest, setIsGuest] = useState(false);
+  
   const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     async function fetchComments() {
       if (!id) return;
       try {
+        // 1. Check Guest Status on Load
+        const { data: { session } } = await supabase.auth.getSession();
+        setIsGuest(session?.user?.is_anonymous ?? false);
+
+        // 2. Fetch the Comments (Guests are allowed to read these!)
         const { data, error } = await supabase
           .from('update_comments')
           .select('*, profiles(first_name, last_name, avatar_url)')
@@ -53,6 +72,9 @@ export default function CommentsScreen() {
   }, [id]);
 
   const postComment = async () => {
+    // Failsafe in case a guest somehow triggers this
+    if (isGuest) return handleGuestAction(router, 'leave a comment');
+    
     if (!inputText.trim()) return;
     
     const content = inputText.trim();
@@ -87,7 +109,7 @@ export default function CommentsScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#white' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#ffffff' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View className="flex-row items-center px-4 pb-4 border-b border-gray-100 bg-white" style={{ paddingTop: Math.max(insets.top, 16) }}>
         <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
           <ChevronLeft size={28} color="#333" />
@@ -130,25 +152,41 @@ export default function CommentsScreen() {
         </ScrollView>
       )}
 
+      {/* BOTTOM INPUT BAR */}
       <View className="px-4 py-3 bg-white border-t border-gray-100 flex-row items-end gap-3" style={{ paddingBottom: Math.max(insets.bottom, 12) }}>
-        <View className="flex-1 bg-[#f8fafc] border border-gray-200 rounded-3xl px-4 min-h-[44px] justify-center py-2.5">
-          <TextInput 
-            placeholder="Add a comment..." 
-            placeholderTextColor="#9ca3af" 
-            className="text-base text-black"
-            value={inputText}
-            onChangeText={setInputText}
-            multiline={true}
-            style={{ paddingTop: 0, paddingBottom: 0, textAlignVertical: 'center', maxHeight: 100 }}
-          />
-        </View>
-        <TouchableOpacity 
-          onPress={postComment}
-          disabled={!inputText.trim()}
-          className={`w-11 h-11 rounded-full items-center justify-center mb-0.5 ${inputText.trim() ? 'bg-[#1d4ed8]' : 'bg-blue-300'}`}
-        >
-          <Send size={18} color="white" style={{ marginLeft: -2, marginTop: 2 }} />
-        </TouchableOpacity>
+        
+        {isGuest ? (
+          // APPLE REVIEWER FIX: Replace input box with a prompt for Guests
+          <TouchableOpacity 
+            onPress={() => handleGuestAction(router, 'leave a comment')}
+            className="flex-1 bg-blue-50 border border-blue-200 rounded-full min-h-[44px] justify-center items-center py-3"
+          >
+            <Text className="text-[#1d4ed8] font-bold text-base">Sign Up / Log In to Comment</Text>
+          </TouchableOpacity>
+        ) : (
+          // NORMAL BEHAVIOR: Show the text input for logged-in users
+          <>
+            <View className="flex-1 bg-[#f8fafc] border border-gray-200 rounded-3xl px-4 min-h-[44px] justify-center py-2.5">
+              <TextInput 
+                placeholder="Add a comment..." 
+                placeholderTextColor="#9ca3af" 
+                className="text-base text-black"
+                value={inputText}
+                onChangeText={setInputText}
+                multiline={true}
+                style={{ paddingTop: 0, paddingBottom: 0, textAlignVertical: 'center', maxHeight: 100 }}
+              />
+            </View>
+            <TouchableOpacity 
+              onPress={postComment}
+              disabled={!inputText.trim()}
+              className={`w-11 h-11 rounded-full items-center justify-center mb-0.5 ${inputText.trim() ? 'bg-[#1d4ed8]' : 'bg-blue-300'}`}
+            >
+              <Send size={18} color="white" style={{ marginLeft: -2, marginTop: 2 }} />
+            </TouchableOpacity>
+          </>
+        )}
+
       </View>
     </KeyboardAvoidingView>
   );

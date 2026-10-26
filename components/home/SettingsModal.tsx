@@ -16,9 +16,7 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { userMode, setMode } = useAuth();
-  
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  
+    
   const [firstName, setFirstName] = useState('HarvestNS');
   const [lastName, setLastName] = useState('User');
   const [isEditingName, setIsEditingName] = useState(false);
@@ -205,13 +203,6 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
             <Text className="text-base font-bold text-gray-800">RSVP'd Events</Text>
           </TouchableOpacity>
 
-          <View className="flex-row items-center justify-between bg-white border border-gray-200 rounded-2xl p-4 mb-4 shadow-sm shadow-gray-200/40">
-            <View className="flex-row items-center gap-4">
-              <View className="w-8" />
-              <Text className="text-base font-bold text-gray-800">Dark Mode</Text>
-            </View>
-            <Switch value={isDarkMode} onValueChange={setIsDarkMode} trackColor={{ false: '#E5E7EB', true: '#1d4ed8' }} thumbColor="white" />
-          </View>
 
           <TouchableOpacity onPress={handleLogout} className="flex-row items-center bg-white border border-gray-200 rounded-2xl p-4 mb-4 gap-4 shadow-sm shadow-gray-200/40">
             <View className="w-8 items-center"><LogOut size={20} color="#4B5563" /></View>

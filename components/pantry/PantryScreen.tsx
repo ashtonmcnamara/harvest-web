@@ -1,16 +1,19 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { View, ScrollView, TouchableOpacity, Image, Modal, Alert, Animated } from 'react-native';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { View, ScrollView, TouchableOpacity, Image, Modal, Alert, Animated, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import { Input } from '@/components/ui/input';
-import { Plus, ChevronDown, ChevronUp, Trash2, ArrowUp, ArrowDown, ArrowLeft, Search, SlidersHorizontal, ChevronRight } from 'lucide-react-native';
+import { Plus, ChevronDown, ChevronUp, Trash2, ArrowUp, ArrowDown, ArrowLeft, Search, SlidersHorizontal, ChevronRight, Archive } from 'lucide-react-native';
 import FarmFilterModal from '@/components/home/FarmFilterModal';
 import { supabase } from '@/lib/supabase';
 
 export default function PantryScreen() {
+  // 1. ALL HOOKS AT THE TOP
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  
+  const [isGuest, setIsGuest] = useState<boolean | null>(null);
   
   const [isEditing, setIsEditing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -29,8 +32,21 @@ export default function PantryScreen() {
     'Fruits & Veggies': true, 'Dairy & Eggs': true, 'Wine & Beer': true, 'Meat & Poultry': true, 'Other': true
   });
 
+  // 2. CHECK GUEST STATUS
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsGuest(session?.user?.is_anonymous ?? false);
+    });
+  }, []);
+
+  // 3. LOAD PANTRY DATA (Skip if guest)
   useFocusEffect(
     useCallback(() => {
+      if (isGuest === null || isGuest === true) {
+        setLoading(false);
+        return;
+      }
+
       fadeAnim.setValue(0);
       setLoading(true);
 
@@ -65,7 +81,7 @@ export default function PantryScreen() {
         }
       }
       loadPantryData();
-    }, [fadeAnim])
+    }, [fadeAnim, isGuest])
   );
 
   const toggleCategory = (category: string) => setExpandedCats(prev => ({ ...prev, [category]: !prev[category] }));
@@ -107,6 +123,42 @@ export default function PantryScreen() {
     return true;
   });
 
+  // ====================================================
+  // RENDER PHASE 
+  // ====================================================
+
+  if (isGuest === null) {
+    return <View className="flex-1 justify-center items-center bg-white"><ActivityIndicator color="#1d4ed8" size="large" /></View>;
+  }
+
+  // APPLE REVIEWER FIX: Guest Lock Screen for Pantry
+  if (isGuest) {
+    return (
+      <View className="flex-1 justify-center items-center px-8 bg-gray-50" style={{ paddingTop: insets.top }}>
+        <View className="w-16 h-16 bg-blue-100 rounded-full items-center justify-center mb-6">
+          <Archive size={32} color="#1d4ed8" />
+        </View>
+        <Text className="text-2xl font-bold text-gray-900 mb-3 text-center">Account Required</Text>
+        <Text className="text-base text-gray-500 text-center mb-8 leading-relaxed">
+          Create a free account to build your personal digital pantry and save your favorite local products.
+        </Text>
+        
+<TouchableOpacity 
+  onPress={async () => {
+    // 1. Sign out of the temporary guest session first
+    await supabase.auth.signOut();
+    // 2. Then navigate to the login screen
+    router.replace('/login');
+  }}
+  className="bg-blue-700 w-full py-4 rounded-xl items-center shadow-sm"
+>
+  <Text className="text-white font-bold text-lg">Sign Up / Log In</Text>
+</TouchableOpacity>
+      </View>
+    );
+  }
+
+  // NORMAL PANTRY SCREEN
   return (
     <View className="flex-1 bg-[#F9FAFB]">
       <View className="flex-row items-center justify-between px-5 pb-4 border-b border-gray-100 bg-white" style={{ paddingTop: Math.max(insets.top, 16) }}>

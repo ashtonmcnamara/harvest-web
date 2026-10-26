@@ -28,7 +28,10 @@ export default function TabLayout() {
 
     async function checkUnreadBadge() {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id || !isMounted) return;
+
+      // APPLE REVIEWER FIX: Skip badge check if the user is an anonymous guest
+      if (!session?.user?.id || session.user.is_anonymous || !isMounted) return;
+      
       const userId = session.user.id;
 
       let targetConversationIds: string[] = [];
@@ -61,10 +64,10 @@ export default function TabLayout() {
     checkUnreadBadge();
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session?.user?.id || !isMounted) return;
+      // Don't subscribe to sockets if it's a guest
+      if (!session?.user?.id || session.user.is_anonymous || !isMounted) return;
       const userId = session.user.id;
 
-      // FIXED: Added a timestamp to the channel name so it is completely unique on every render, preventing crashes!
       channel = supabase.channel(`global_badge_${userId}_${Date.now()}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
            checkUnreadBadge();

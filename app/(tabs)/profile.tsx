@@ -75,7 +75,16 @@ export default function ProfileScreen() {
   const handleSignOut = async () => {
     Alert.alert('Sign Out', 'Are you sure you want to log out?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: async () => { await supabase.auth.signOut(); router.replace('/login'); } }
+      { 
+        text: 'Sign Out', 
+        style: 'destructive', 
+        onPress: async () => { 
+          await supabase.auth.signOut(); 
+          setTimeout(() => {
+            router.replace('/login'); 
+          }, 100);
+        } 
+      }
     ]);
   };
 
@@ -102,7 +111,13 @@ export default function ProfileScreen() {
   };
 
   const GridButton = ({ title, icon: Icon, onPress, count }: any) => (
-    <TouchableOpacity activeOpacity={0.8} onPress={onPress} className="w-[47%] aspect-square bg-[#F1F5F9] rounded-3xl p-5 border border-gray-200/60 shadow-sm justify-between">
+    <TouchableOpacity 
+      activeOpacity={0.8} 
+      onPress={onPress} 
+      // FIX 1: Explicit inline styles guarantee the 2x2 grid works correctly
+      style={{ width: '48%', aspectRatio: 1, marginBottom: 16 }}
+      className="bg-[#F1F5F9] rounded-3xl p-5 border border-gray-200/60 shadow-sm justify-between"
+    >
       <View className="w-12 h-12 bg-white rounded-full items-center justify-center border border-gray-100"><Icon size={24} color="#1d4ed8" /></View>
       <View>
         <Text className="text-lg font-bold text-gray-900 leading-tight">{title}</Text>
@@ -136,7 +151,10 @@ export default function ProfileScreen() {
         {loading ? (
           <View className="h-64" />
         ) : (
-          <Animated.View style={{ opacity: fadeAnim }} className="flex-row flex-wrap justify-between gap-y-4 pb-8">
+          <Animated.View 
+            // FIX 2: Explicit flexbox styles for the Animated View wrapper
+            style={{ opacity: fadeAnim, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingBottom: 32 }} 
+          >
             <GridButton title="RSVP'd Events" icon={CalendarCheck} count={myRSVPs.length} onPress={() => setActiveModal('rsvps')} />
             {role !== 'consumer' && <GridButton title="My Events" icon={CalendarDays} count={myEvents.length} onPress={() => setActiveModal('events')} />}
             {role !== 'consumer' && <GridButton title="My Updates" icon={MessageSquare} count={myUpdates.length} onPress={() => setActiveModal('updates')} />}
@@ -148,7 +166,8 @@ export default function ProfileScreen() {
 
       {/* DYNAMIC LIST MODAL */}
       <Modal visible={activeModal !== null} transparent animationType="slide" onRequestClose={() => setActiveModal(null)}>
-        <View className="flex-1 bg-white">
+        {/* FIX 3: Explicit max-width for web modal centering */}
+        <View style={{ flex: 1, width: '100%', maxWidth: 448, alignSelf: 'center', height: '100%' }} className="bg-white shadow-2xl">
           <View className="flex-row items-center justify-between px-5 pb-4 border-b border-gray-100" style={{ paddingTop: Math.max(insets.top, 16) }}>
             <TouchableOpacity onPress={() => setActiveModal(null)} className="w-10 h-10 items-center justify-center -ml-2"><X size={24} color="#000" /></TouchableOpacity>
             <Text className="text-xl font-bold text-black">{getModalTitle()}</Text>

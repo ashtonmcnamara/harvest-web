@@ -3,11 +3,21 @@ import { View, ScrollView, TouchableOpacity, Image, Modal, ActivityIndicator, Al
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router'; 
 import { Text } from '@/components/ui/text';
-// FIXED: Swapped brand icons for the safe Link icon
 import { ChevronLeft, Share as ShareIcon, Bookmark, BadgeCheck, MessageCircle, Globe, Camera, Pencil, X, MapPin, Calendar, Clock, Truck, Award, Plus, Link as LinkIcon } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/context/AuthContext';
-import MapView, { Marker } from 'react-native-maps';
+import LocationMap from '@/components/ui/LocationMap';
+
+const handleGuestAction = (router: any, actionName: string) => {
+  Alert.alert(
+    'Account Required',
+    `You must create a free account qto ${actionName}.`,
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign Up / Log In', onPress: async () => { await supabase.auth.signOut(); router.replace('/login'); } }
+    ]
+  );
+};
 
 export default function FarmProfile() {
   const insets = useSafeAreaInsets();
@@ -21,6 +31,7 @@ export default function FarmProfile() {
   const [farmEvents, setFarmEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
+  const [isGuest, setIsGuest] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [activePopup, setActivePopup] = useState<{ title: string; content: string } | null>(null);
@@ -43,12 +54,16 @@ export default function FarmProfile() {
           if (eventData) setFarmEvents(eventData);
 
           const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user?.id) {
-            const { data: memberData } = await supabase.from('farm_members').select('*').eq('farm_id', id).eq('user_id', session.user.id).maybeSingle();
-            if (memberData) setIsOwner(true);
+          if (session?.user) {
+            setIsGuest(session.user.is_anonymous ?? false);
+            
+            if (!session.user.is_anonymous) {
+              const { data: memberData } = await supabase.from('farm_members').select('*').eq('farm_id', id).eq('user_id', session.user.id).maybeSingle();
+              if (memberData) setIsOwner(true);
 
-            const { data: savedData } = await supabase.from('saved_farms').select('*').eq('farm_id', id).eq('user_id', session.user.id).maybeSingle();
-            if (savedData) setIsSaved(true);
+              const { data: savedData } = await supabase.from('saved_farms').select('*').eq('farm_id', id).eq('user_id', session.user.id).maybeSingle();
+              if (savedData) setIsSaved(true);
+            }
           }
         } catch (error) {
           console.error('Error fetching farm details:', error);
@@ -62,6 +77,8 @@ export default function FarmProfile() {
   );
 
   const handleSave = async () => {
+    if (isGuest) return handleGuestAction(router, 'save this farm');
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user?.id) return;
@@ -85,6 +102,8 @@ export default function FarmProfile() {
   };
 
   const handleMessageFarm = async () => {
+    if (isGuest) return handleGuestAction(router, 'message this farm');
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user?.id) return;
@@ -118,7 +137,7 @@ export default function FarmProfile() {
     } catch (error) {}
   };
 
-  const canEdit = isOwner || isAdmin;
+  const canEdit = (isOwner || isAdmin) && !isGuest;
   const filteredProducts = activeFilter === 'All' ? farmProducts : farmProducts.filter((p: any) => p.category === activeFilter);
 
   if (loading) {
@@ -146,9 +165,18 @@ export default function FarmProfile() {
           )}
           
           <View className="absolute w-full px-4 flex-row justify-between items-start" style={{ top: Math.max(insets.top, 16) }}>
-            <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 bg-black/40 rounded-full items-center justify-center backdrop-blur-md border border-white/20">
-              <ChevronLeft size={24} color="white" />
-            </TouchableOpacity>
+<TouchableOpacity 
+  onPress={() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)'); // Fallback to home feed on direct web loads
+    }
+  }} 
+  className="w-10 h-10 bg-black/40 rounded-full items-center justify-center backdrop-blur-md border border-white/20"
+>
+  <ChevronLeft size={24} color="white" />
+</TouchableOpacity>
             
             <View className="flex-row gap-3 items-center">
               {isAdmin && (
@@ -235,12 +263,11 @@ export default function FarmProfile() {
                 <Text className="text-gray-700 text-base">{activeFarm.location_address}</Text>
               </View>
               <View className="h-48 w-full">
-                <MapView 
-                  style={{ flex: 1 }}
-                  initialRegion={{ latitude: Number(activeFarm.latitude), longitude: Number(activeFarm.longitude), latitudeDelta: 0.05, longitudeDelta: 0.05 }}
-                >
-                  <Marker coordinate={{ latitude: Number(activeFarm.latitude), longitude: Number(activeFarm.longitude) }} title={activeFarm.name} />
-                </MapView>
+<LocationMap 
+  latitude={activeFarm.latitude}
+  longitude={activeFarm.longitude}
+  title={activeFarm.name} 
+/>
               </View>
             </View>
           )}
